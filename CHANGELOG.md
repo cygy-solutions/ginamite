@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.17.1
+
+### Fixed
+
+- `request.SaveUploadedFile` no longer changes the mode of the destination directory: since gin 1.12,
+  `gin.Context.SaveUploadedFile` runs a `chmod` on it, which failed with `chmod /tmp: operation not permitted` for an
+  application not running as root and saving to the system temporary directory. The missing directories are still
+  created, and the partial file is removed when the copy fails (#29).
+
+### Changed
+
+- Dependencies: `github.com/IBM/sarama` 1.62.0, `github.com/stripe/stripe-go/v87` 87.2.0,
+  `go.mongodb.org/mongo-driver/v2` 2.10.1, and the indirect `klauspost/compress` and `golang.org/x/net` (#28).
+
 ## v0.17.0
 
 ### Changed
