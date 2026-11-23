@@ -2,11 +2,13 @@ package request
 
 import (
 	"bytes"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	ctxLocale "github.com/cygy-solutions/ginamite/api/context/locale"
@@ -159,6 +161,42 @@ func TestSaveUploadedFile(t *testing.T) {
 		c.Writer.WriteHeaderNow()
 		if recorder.Code != http.StatusInternalServerError {
 			t.Errorf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+		}
+	})
+}
+
+// failingReader returns some content, then an error.
+type failingReader struct{ read bool }
+
+func (r *failingReader) Read(p []byte) (int, error) {
+	if r.read {
+		return 0, errors.New("read failure")
+	}
+	r.read = true
+
+	return copy(p, "partial"), nil
+}
+
+func TestWriteFile(t *testing.T) {
+	t.Run("written", func(t *testing.T) {
+		destination := filepath.Join(t.TempDir(), "saved.txt")
+
+		if err := writeFile(strings.NewReader("content"), destination); err != nil {
+			t.Fatalf("writeFile() error = %v", err)
+		}
+		if content, err := os.ReadFile(destination); err != nil || string(content) != "content" {
+			t.Errorf("content = %q, %v, want %q", content, err, "content")
+		}
+	})
+
+	t.Run("partial file removed on copy failure", func(t *testing.T) {
+		destination := filepath.Join(t.TempDir(), "saved.txt")
+
+		if err := writeFile(&failingReader{}, destination); err == nil {
+			t.Fatal("writeFile() error = nil, want an error")
+		}
+		if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("the partial file is still there: %v", err)
 		}
 	})
 }

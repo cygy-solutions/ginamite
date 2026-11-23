@@ -106,13 +106,19 @@ func SaveUploadedFile(c *gin.Context, file *multipart.FileHeader, destination, l
 }
 
 // saveFile copies the uploaded file to the destination.
-func saveFile(file *multipart.FileHeader, destination string) (err error) {
+func saveFile(file *multipart.FileHeader, destination string) error {
 	src, err := file.Open()
 	if err != nil {
 		return fmt.Errorf("unable to open the uploaded file: %w", err)
 	}
 	defer func() { _ = src.Close() }() // read-only file, nothing to report on close
 
+	return writeFile(src, destination)
+}
+
+// writeFile writes the content of src to the destination, creating the missing parent directories. The destination is
+// removed when the content can not be fully written, so that no partial file is left on disk.
+func writeFile(src io.Reader, destination string) (err error) {
 	if err = os.MkdirAll(filepath.Dir(destination), 0o750); err != nil {
 		return fmt.Errorf("unable to create the directory: %w", err)
 	}
@@ -124,6 +130,9 @@ func saveFile(file *multipart.FileHeader, destination string) (err error) {
 	defer func() {
 		if closeErr := out.Close(); err == nil && closeErr != nil {
 			err = fmt.Errorf("unable to close the file: %w", closeErr)
+		}
+		if err != nil {
+			_ = os.Remove(destination) // best effort, the original error is the one to report
 		}
 	}()
 
