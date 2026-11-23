@@ -109,6 +109,40 @@ func TestSaveUploadedFile(t *testing.T) {
 		}
 	})
 
+	t.Run("existing directory mode untouched", func(t *testing.T) {
+		c, _ := uploadContext(t, "file", "image.png", pngHeader)
+		file := GetUploadedFile(c, "file", 1024, true, "test", "msg")
+		directory := t.TempDir()
+		// A mode different from the one gin applies (0o750): a directory owned by another user can not be changed.
+		if err := os.Chmod(directory, 0o755); err != nil { //nolint:gosec // the test needs a readable directory
+			t.Fatalf("unable to chmod the directory: %v", err)
+		}
+
+		if !SaveUploadedFile(c, file, filepath.Join(directory, "saved.png"), "test", "msg") {
+			t.Fatal("SaveUploadedFile() = false, want true")
+		}
+		info, err := os.Stat(directory)
+		if err != nil {
+			t.Fatalf("unable to stat the directory: %v", err)
+		}
+		if got := info.Mode().Perm(); got != 0o755 {
+			t.Errorf("directory mode = %o, want 755", got)
+		}
+	})
+
+	t.Run("missing directories created", func(t *testing.T) {
+		c, _ := uploadContext(t, "file", "image.png", pngHeader)
+		file := GetUploadedFile(c, "file", 1024, true, "test", "msg")
+		destination := filepath.Join(t.TempDir(), "a", "b", "saved.png")
+
+		if !SaveUploadedFile(c, file, destination, "test", "msg") {
+			t.Fatal("SaveUploadedFile() = false, want true")
+		}
+		if _, err := os.Stat(destination); err != nil {
+			t.Errorf("the file is missing: %v", err)
+		}
+	})
+
 	t.Run("unable to save", func(t *testing.T) {
 		c, recorder := uploadContext(t, "file", "image.png", pngHeader)
 		file := GetUploadedFile(c, "file", 1024, true, "test", "msg")

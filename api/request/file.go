@@ -2,8 +2,12 @@ package request
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	ctxLocale "github.com/cygy-solutions/ginamite/api/context/locale"
@@ -82,9 +86,11 @@ func GetUploadedFile(c *gin.Context, fieldName string, maxSize int64, checkIsIma
 	return file
 }
 
-// SaveUploadedFile saves the uploaded file to the destination.
+// SaveUploadedFile saves the uploaded file to the destination, creating the missing parent directories. Unlike
+// gin.Context.SaveUploadedFile, it never changes the mode of an existing directory: the chmod of a directory owned by
+// another user (the system temporary directory for instance) fails with "operation not permitted".
 func SaveUploadedFile(c *gin.Context, file *multipart.FileHeader, destination, logContext, errorMessageKey string) bool {
-	if err := c.SaveUploadedFile(file, destination); err != nil {
+	if err := saveFile(file, destination); err != nil {
 		log.Error("unable to save the file",
 			"context", logContext,
 			"error", err.Error(),
@@ -97,4 +103,33 @@ func SaveUploadedFile(c *gin.Context, file *multipart.FileHeader, destination, l
 	}
 
 	return true
+}
+
+// saveFile copies the uploaded file to the destination.
+func saveFile(file *multipart.FileHeader, destination string) (err error) {
+	src, err := file.Open()
+	if err != nil {
+		return fmt.Errorf("unable to open the uploaded file: %w", err)
+	}
+	defer func() { _ = src.Close() }() // read-only file, nothing to report on close
+
+	if err = os.MkdirAll(filepath.Dir(destination), 0o750); err != nil {
+		return fmt.Errorf("unable to create the directory: %w", err)
+	}
+
+	out, err := os.Create(destination) //nolint:gosec // the destination is built by the caller, not by the client
+	if err != nil {
+		return fmt.Errorf("unable to create the file: %w", err)
+	}
+	defer func() {
+		if closeErr := out.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("unable to close the file: %w", closeErr)
+		}
+	}()
+
+	if _, err = io.Copy(out, src); err != nil {
+		return fmt.Errorf("unable to copy the file: %w", err)
+	}
+
+	return nil
 }
