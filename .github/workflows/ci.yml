@@ -1,9 +1,11 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    # A change of the documentation only runs no check (so do not make this check required in a ruleset).
+    paths-ignore: ["**.md", "documentation/**", "LICENSE"]
+  # main is checked once per release, before its version commit: cygy-release-prep (cygy-dev) runs this workflow on it.
+  workflow_dispatch:
   schedule:
     # Every Monday: a new vulnerability can affect an unchanged code.
     - cron: "0 6 * * 1"
@@ -24,6 +26,8 @@ env:
 jobs:
   check:
     name: make check
+    # The weekly run only looks for new vulnerabilities.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -51,6 +55,8 @@ jobs:
 
   integration:
     name: integration tests
+    # The weekly run only looks for new vulnerabilities.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     services:
       mongo:

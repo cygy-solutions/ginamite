@@ -167,8 +167,9 @@ make fuzz         # each fuzz test, FUZZTIME (30s) by default
 ```
 
 The code is formatted with `gofumpt`, `golangci-lint` must report no issue, and the code is tested along with it. The
-CI runs `make check`, `make integration` (with MongoDB and Kafka) and `govulncheck` on every pull request, and
-`govulncheck` every Monday. See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute, and
+CI runs `make check`, `make integration` (with MongoDB and Kafka) and `govulncheck` on every pull request that
+changes more than the documentation, on `main` once per release (before the version commit), and `govulncheck`
+every Monday. See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute, and
 [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ### Release
